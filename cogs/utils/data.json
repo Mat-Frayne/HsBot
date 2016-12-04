@@ -201,7 +201,7 @@
         "System"
     ],
     "urls": {
-        "hs_image_base_url": "http://wow.zamimg.com/images/hearthstone/cards/enus/original/{}.png"
+        "hs_image_base_url": "http://media.services.zam.com/v1/media/byName/hs/cards/enus/{}.png"
     },
     "errors":{
         "OG_211": "Costs 9* Mana not 8 - this is an error on the image hosting site.",
