@@ -25,7 +25,26 @@ database_models = {
         "Last_used": ["DATETIME"]
     }
 }
-
+errordb = Database("errors.db")
+error_model = {
+    "Errors": {
+        "Date": ["DAETIME"],
+        "Error": ["TEXT"],
+        "Module": ["TEXT"],
+        "Line": ["TEXT"]
+    }
+}
+try:
+    errordb.add_table(
+        "Errors",
+        {
+            "Date": ["DAETIME"],
+            "Error": ["TEXT"],
+            "Module": ["TEXT"],
+            "Line": ["TEXT"]
+        })
+except:
+    pass
 
 for table in database_models:
     try:

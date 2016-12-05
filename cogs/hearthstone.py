@@ -1,10 +1,11 @@
 """."""
 from difflib import SequenceMatcher
 from discord.ext import commands
-import asyncio
 from .utils import (misc, data)
+import asyncio
 import discord
 import time
+import re
 
 
 class Hearthstone:
@@ -20,8 +21,30 @@ class Hearthstone:
     @asyncio.coroutine
     def _hs(self, ctx, *, arg: str):
         """Search Hearthstone."""
-        argl = arg.lower()
-        cards = yield from self.get_cards(argl)
+        pullargs = re.findall(r'-(.*?)(\s|-|$)', arg)
+        args = {}
+        for x in pullargs:
+            try:
+                arg1 = re.findall(r'(.*?)=', x[0])
+                arg2 = re.findall(r'=(.*?)$', x[0])
+                arg = arg.replace("-" + x[0], "")
+                args[arg1[0].lower()] = arg2[0]
+            except:
+                pass
+        argl = arg.lower().strip()
+        ratio = 0.8
+        if args.get("ratio"):
+            try:
+                ratio = int(args.get("ratio", "0.8"))
+                if ratio < 0 > 1:
+                    ratio = 0.8
+            except:
+                pass
+        if args.get("id", None):
+            cards = [x for x in self.bot.hs["cards"] if
+                     x["id"] == args.get("id")]
+        else:
+            cards = yield from self.get_cards(argl, ratio, args)
         if len(cards) < 1:
             yield from self.bot.say("No close matches found.")
             return
@@ -30,54 +53,141 @@ class Hearthstone:
         embed.url = data["urls"]["hs_image_base_url"].format(cards[0]["id"])
         embed.set_image(
             url=data["urls"]["hs_image_base_url"].format(cards[0]["id"]))
+        text = "{} more card{} found, type {}more to see {}."
         if len(cards) > 1:
+            c = len(cards) - 1
+            k = "it" if c is 1 else "them"
             embed.set_footer(
-                text="{} more cards found, type {}more to see the next {}"
-                .format(len(cards) - 1, ctx.prefix,
-                        len(cards) - 1 if len(cards) - 1 < 6 else 6))
+                text=text
+                .format(
+                    len(cards) - 1, "s" if c is not 1 else "", ctx.prefix,
+                    k if (len(cards) - 1) < 6 else "the next 6"))
+        info = ""
+        if cards[0].get("type", None):
+            info = info + "Type: {}".format(cards[0].get("type", "").title())
+        if cards[0].get("cost", None):
+            info = info + "\nMana Cost: {}\t".format(cards[0].get("cost"))
+        if cards[0].get("playerClass", None):
+            info = info + "\nClass: {}\t".format(
+                cards[0].get("playerClass", "").title())
+        if cards[0].get("attack", None):
+            info = info + "Attack: {}\t".format(cards[0].get("attack"))
+        if cards[0].get("health", None):
+            info = info + "Health: {}\t".format(cards[0].get("health"))
+        if cards[0].get("durability", None):
+            info = info + "Durability: {}\t".format(cards[0].get("durability"))
+        embed.add_field(
+            name="Info:",
+            value=info + "\n" +
+            re.sub(
+                r"<.{1,2}>|\[x\]", "",
+                cards[0].get("text", ""))
+            .strip().replace("\n", " ") + "\n" +
+            cards[0].get("howToEarn", ""))
         if cards[0].get("dust", None):
-            embed.add_field(
-                name="Dust",
-                value="Crafting (norm | gold): {:>10} | {:<}\n"
-                .format(cards[0]["dust"][0] if len(
-                        cards[0]["dust"]) > 0 else "N/A",
-                        cards[0]["dust"][1] if len(
-                            cards[0]["dust"]) > 1 else "N/A") +
-                "Disenchant (norm | gold): {:>5} | {:<5}"
-                .format(cards[0]["dust"][2] if len(
-                        cards[0]["dust"]) > 2 else "N/A",
-                        cards[0]["dust"][3] if len(
-                        cards[0]["dust"]) > 3 else "N/A",))
+            table = "{:<8}     {:>12}     {:>14}".format(
+                "Type", "Crafting", "Disenchant")
+            cnorm = cards[0]["dust"][0] if len(
+                cards[0]["dust"]) > 0 else "N/A"
+            cgold = cards[0]["dust"][1] if len(
+                cards[0]["dust"]) > 1 else "N/A"
+            dnorm = cards[0]["dust"][2] if len(
+                cards[0]["dust"]) > 2 else "N/A"
+            dgold = cards[0]["dust"][3] if len(
+                cards[0]["dust"]) > 3 else "N/A"
+            table = table + "\n{:<6}     {:>12}     {:>20}".format(
+                "Normal", cnorm, dnorm)
+            table = table + "\n{:<9}     {:>12}     {:>20}".format(
+                "Gold", cgold, dgold)
+            embed.add_field(name="Dust:", value=table, inline=False)
         yield from self.bot.say(embed=embed)
         try:
-            k = self.bot.database.table_data(
-                "Searches", "Card", cards[0]["id"])
-            if len(k) < 1:
-                self.bot.database.insert_row(
-                    "Searches",
-                    {"Last_used": time.time(), "Card": cards[0]["id"],
-                     "Count": "1"})
-            else:
-                self.bot.database.change_data(
-                    "Searches",
-                    {"Count": str(int(k[0]["Count"]) + 1)},
-                    {"Card": cards[0]["id"]})
+            if ctx.message.channel.id != "159566466243493888":
+                k = self.bot.database.table_data(
+                    "Searches", "Card", cards[0]["id"])
+                if len(k) < 1:
+                    self.bot.database.insert_row(
+                        "Searches",
+                        {"Last_used": time.time(), "Card": cards[0]["id"],
+                         "Count": "1"})
+                else:
+                    self.bot.database.change_data(
+                        "Searches",
+                        {"Count": str(int(k[0]["Count"]) + 1)},
+                        {"Card": cards[0]["id"]})
         except:
-            raise
-        yield from self._search_response(ctx, cards)
+            pass
+        if len(cards) > 1:
+            msg = yield from self.bot.wait_for_message(
+                author=ctx.message.author)
+            if msg.content == ctx.prefix + "more":
+                if len(cards) == 2:
+                    arg = "-id={}".format(
+                        cards[1].get("id", None))
+                    yield from ctx.invoke(self._hs, arg=arg)
+                    return
+                embed = discord.Embed()
+                for index, x in enumerate(cards[1:7]):
+                    out = ""
+                    if x.get("type"):
+                        out = out + "Type: " + x.get("type", "").title()
+                    if x.get("cost"):
+                        out = out + "\nCost: " + str(x.get("cost"))
+                    if x.get("attack"):
+                        out = out + "\nAttack: " + str(x.get("attack"))
+                    if x.get("health"):
+                        out = out + "\nHealth: " + str(x.get("health"))
+                    embed.add_field(
+                        name="{}: {}".format(index, x.get("name", "N/A")),
+                        value=out)
+                embed.set_footer(
+                    text=(
+                        "Type a number from 0-{} for more infomation"
+                        .format((len(cards) - 1) if len(cards) < 5 else "5") +
+                        " on a card."))
+                yield from self.bot.say(embed=embed)
+                msg = yield from self.bot.wait_for_message(
+                    author=ctx.message.author)
+                if misc.isint(msg.content.strip(ctx.prefix)) and\
+                        (0 <= int(msg.content.strip(ctx.prefix)) <
+                            len(cards) - 1):
+                    arg = "-id={}".format(
+                        cards[int(msg.content) + 1].get("id", None))
+                    yield from ctx.invoke(self._hs, arg=arg)
 
     @asyncio.coroutine
-    def get_cards(self, query):
+    def get_cards(self, query, ratio, args):
         """."""
         top = []
-
-        for card in [tyu for tyu in self.bot.hs["cards"] if
-                     tyu.get("type", "Other") not in ["HERO", "HERO_POWER"]]:
+        print(args)
+        for card in [tyu for tyu in self.bot.hs["cards"]]:
             if card.get("set", None) not in ['NONE', None]:
-                sim = SequenceMatcher(None, card["name"].lower(), query).ratio()
-                if sim > .8 or\
+                sim = SequenceMatcher(
+                    None, card["name"].lower(), query).ratio()
+                if sim > ratio or\
                         query in card["name"].lower():
                     top.append(card)
+        if args.get("health", None):
+            top = [x for x in top if str(x.get("health")) ==
+                   str(args.get("health", None))]
+        if args.get("attack", None):
+            top = [x for x in top if x.get("attack", None) ==
+                   args.get("attack", None)]
+        if args.get("durability", None):
+            top = [x for x in top if x.get("durability", None) ==
+                   args.get("durability", None)]
+        if args.get("mana", None):
+            top = [x for x in top if x.get("cost", None) ==
+                   args.get("mana")]
+        if args.get("cost", None):
+            top = [x for x in top if x.get("cost", None) ==
+                   args.get("cost")]
+        if args.get("class", None):
+            top = [x for x in top if x.get("playerClass", None).lower() ==
+                   args.get("class").lower()]
+        if args.get("mechanic", None):
+            top = [x for x in top if args.get("mechanic").upper() in
+                   x.get("mechanics", [])]
 
         def sortkey_mutators(k):
             """."""
@@ -192,22 +302,13 @@ class Hearthstone:
         pass
 
     # Responses
-    @asyncio.coroutine
-    def _search_response(self, ctx, arr):
-        """."""
-        def check(msg):
-            """."""
-            return msg.content == ctx.prefix + "more"
-        msg = yield from self.bot.wait_for_message(
-            check=check, timeout=120)
-        if msg:
-            yield from self.bot.say("!more sent")
 
     @asyncio.coroutine
     def _classes_response(self, ctx, outmess):
         """."""
         def check(mess):
             """."""
+            mess.content = mess.content.strip(ctx.prefix)
             return misc.isint(mess.content) and\
                 (0 <= int(mess.content) < len(data["player_classes"]))
 
@@ -217,7 +318,6 @@ class Hearthstone:
             yield from self.bot.delete_message(msg)
             yield from self.bot.say(
                 [x for x in data["player_classes"]][int(msg.content)])
-
 
 
 def setup(bot):

@@ -44,6 +44,7 @@ bot = Bot(command_prefix=['!', '?', '\u2757'],
           description=description, pm_help=None,
           help_attrs=help_attrs)
 setattr(bot, 'database', db)
+setattr(bot, 'errdb', plugins.errordb)
 setattr(bot, 'url', "localhost")
 setattr(bot, 'img_url', "139.59.234.223")
 
