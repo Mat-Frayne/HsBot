@@ -1,37 +1,76 @@
+#!/usr/bin/env python
 """."""
-from discord.ext import commands
-from discord.errors import LoginFailure
-from cogs.utils import misc
-#  from threading import Thread
-# from plugins import app
-
-import traceback
-import plugins
 import asyncio
+import configparser
+from time import time
+
 import discord
-import time
-import sys
+from discord.ext import commands
+from sqlalchemy import create_engine
+from sqlalchemy.sql import select
 
-db = plugins.database
-description = """
-Hello! I am a bot written by Subarashii based off of RoboDanny.py,
-mee6.py and discord.py
-"""
-help_attrs = dict(hidden=True)
+from database.models import Model
+
+CONFIG = configparser.ConfigParser()
+with open('settings.ini', "r") as f:
+    CONFIG.read_file(f)
 
 
-class Bot(commands.Bot):
+class Client(commands.Bot):
     """."""
 
-    def __init_(self, **options):
+    def __init__(self, *args, **kwargs):
         """."""
-        super().__init__(**options)
+        super().__init__(*args, **kwargs)
+        self.starttime = time()
+        self.engine = create_engine("sqlite:///database/main.db", echo=True)
+        self.conn = self.engine.connect()
 
-    @asyncio.coroutine
-    def _get_prefix(self, message):
-        prefix = db.table_data(
-            "ServerPrefixes", "ServerId", message.server.id)[0]["Prefix"]
-        # self.command_prefix
+        self.models = Model(self.engine)
+        if kwargs.get("ow"):
+            self.loop.create_task(kwargs.get("ow"))
+
+    async def on_ready(self):
+        """."""
+        await self.change_presence(status=discord.Status.do_not_disturb, afk=True)
+        print('Logged in as', self.user, "\n----------------------")
+        self.conn.execute(self.models.stats.insert(), [
+            {'Stat': 'Commands_used', 'Value': 0},
+            {'Stat': 'Messages_recieved', 'Value': 0},
+            {'Stat': 'Messages_sent', 'Value': 0}
+        ])
+        await self.wait_until_ready()
+        await asyncio.sleep(10)
+        await self.change_presence(status=discord.Status.invisible)
+
+    async def on_message(self, message):
+        """."""
+        if message.author.id == self.user.id:
+            return
+        stats = self.models.stats
+        statement = select([stats]).where(stats.c.Stat == "Messages_recieved")
+        query = self.conn.execute(statement).first()
+        print(query["Value"])
+        smtm = stats.update().where(stats.c.Stat == "Messages_recieved").values(
+            Value=query["Value"] + 1)
+        self.conn.execute(smtm)
+        await self.process_commands(message)
+
+    async def get_prefix(self, message):
+        """|coro|
+        Retrieves the prefix the bot is listening to
+        with the message as a context.
+        Parameters
+        -----------
+        message: :class:`discord.Message`
+            The message context to get the prefix of.
+        Returns
+        --------
+        Union[List[str], str]
+            A list of prefixes or a single prefix that the bot is
+            listening for.
+        """
+        prefix = self.command_prefix
         if callable(prefix):
             ret = prefix(self, message)
             if asyncio.iscoroutine(ret):
@@ -40,153 +79,11 @@ class Bot(commands.Bot):
         else:
             return prefix
 
-bot = Bot(command_prefix=['!', '?', '\u2757'],
-          description=description, pm_help=None,
-          help_attrs=help_attrs)
-setattr(bot, 'database', db)
-setattr(bot, 'errdb', plugins.errordb)
-setattr(bot, 'url', "localhost")
-setattr(bot, 'img_url', "139.59.234.223")
+BOT = Client(command_prefix='!')
 
-bot.initial_extensions = [
-    'cogs.general',
-    'cogs.admin',
-    'cogs.hearthstone',
-]
-
-
-@bot.event
-@asyncio.coroutine
-def on_ready():
-    """On-ready event for discord bot."""
-    print('------------------------------------')
-    print('Logged in as:')
-    print('Username: ' + bot.user.name)
-    print('ID: ' + bot.user.id)
-    print('------------------------------------')
-    if not hasattr(bot, 'uptime'):
-        bot.starttime = time.time()
-    dbservers = [x["ServerId"] for x in db.table_data("ServerPrefixes")]
-    for server in bot.servers:
-        if server.id not in dbservers:
-            db.insert_row(
-                "ServerPrefixes",
-                {"ServerId": server.id, "Prefix": "!",
-                 "InTextWraps": "{}"},
-                raise_integ="hide")
-
-
-@bot.event
-@asyncio.coroutine
-def on_message(message):
-    """."""
-    if message.author.bot:
-        return
-    # g = db.table_data("ChannelPrefixes", "ChannelID", message.server.id)
-    # check = g[0]["Prefix"] if len(g) > 0 else None
-
-    # if check and check == message.content[0]:
-    #     message.content = "!" + message.content[1:]
-    yield from bot.process_commands(message)
-
-
-@bot.event
-@asyncio.coroutine
-def on_command_error(error, ctx):
-    """."""
-    if isinstance(error, commands.NoPrivateMessage):
-        yield from bot.send_message(
-            ctx.message.author,
-            'This command cannot be used in private messages.')
-    elif isinstance(error, commands.DisabledCommand):
-        yield from bot.send_message(
-            ctx.message.author,
-            'Sorry. This command is disabled and cannot be used.')
-    elif isinstance(error, commands.CommandInvokeError):
-        # if error.original.__class__.__name__ == "AttributeError":
-        #     yield from bot.send_message(
-        #         ctx.message.channel,
-        #         "Command cannot be used in Private channel.")
-        #     return
-        print('In {0.command.qualified_name}:'.format(ctx), file=sys.stderr)
-        traceback.print_tb(error.original.__traceback__)
-        print('{0.__class__.__name__}: {0}'.format(
-              error.original), file=sys.stderr)
-
-
-def app_main(loop):
-    """Flask app thread (auto reload turned off)."""
-    plugins.app.run(
-        debug=False,
-        host="0.0.0.0",
-        port=80)
-    setattr(bot, "app", plugins.app)
-    setattr(plugins.app, "bot", bot)
-
-
-def setup_logins():
-    """Setup function for api's."""
-    datas = ["Token", "Secret", "Client_Id"]
-
-    for data in datas:
-        d = db.table_data("Client", "Data", data)[0]['Value'] if\
-            len(db.table_data("Client", "Data", data)) > 0 else None
-        while not d:
-            di = input("\tYour {}: ".format(data.lower()))
-            if di:
-                db.change_data("Client", {"Value": di}, {"Data": data})
-            d = db.table_data("Client", "Data", data)[0]['Value'] if\
-                len(db.table_data("Client", "Data", data)) > 0 else None
-
-
-@asyncio.coroutine
-def hs_updater():
-    """."""
-    while 1:
-        k = db.table_data("Client", "Data", "Hs_json_last")
-        last_run = k[0]["Value"] if len(k) > 0 else 0
-        if float(last_run) + 14400 < time.time():  # 4 hours
-            cards = yield from misc.get(misc.hsCards)
-            backs = yield from misc.get(misc.hsBacks)
-            colllectables = yield from misc.get(misc.hsCollectable)
-            hs = {"cards": {}, "backs": {}, "collectables": {}}
-            hs["cards"] = cards
-            hs["backs"] = backs
-            hs["collectables"] = colllectables
-            setattr(bot, "hs", hs)
-            yield from bot.change_presence(
-                game=discord.Game(name="Online!"))
-            db.change_data(
-                "Client", {"Value": str(time.time())},
-                {"Data": "Hs_json_last"})
-            print("Hearthstone Updated!")
-        yield from asyncio.sleep(14400)
+MODULES = []
 
 if __name__ == '__main__':
-    def start():
-        """."""
-        while 1:
-            try:
-
-                setup_logins()
-                # loop = asyncio.get_event_loop()
-                # t = Thread(target=app_main, args=(loop,),
-                #  name="MainBotThread")
-                # t.start()
-                for extension in bot.initial_extensions:
-                    try:
-                        bot.load_extension(extension)
-                    except Exception as e:
-                        print('Failed to load extension {}\n{}: {}'
-                              .format(extension, type(e).__name__, e))
-                bot.loop.create_task(hs_updater())
-                bot.run(db.table_data("Client", "Data", "Token")[0]['Value'])
-            except LoginFailure:
-                print("Error Loggin in! Invalid Token, reseting Token.....")
-                db.change_data("Client", {"Value": ""}, {"Data": "Token"})
-                setup_logins()
-                start()
-            except Exception as e:
-                print(e)
-                break
-    start()
+    for x in MODULES:
+        BOT.load_extension('cogs.' + x)
+    BOT.run(CONFIG.get("tokens", "subatest"))
