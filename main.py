@@ -1,16 +1,18 @@
+#!/usr/bin/env python
 """."""
-from discord.ext import commands
-from discord.errors import LoginFailure
+import asyncio
+import sys
+import time
+import traceback
+
+import discord
+import plugins
 from cogs.utils import misc
+from discord.errors import LoginFailure
+from discord.ext import commands
 #  from threading import Thread
 # from plugins import app
 
-import traceback
-import plugins
-import asyncio
-import discord
-import time
-import sys
 
 db = plugins.database
 description = """
@@ -26,6 +28,11 @@ class Bot(commands.Bot):
     def __init_(self, **options):
         """."""
         super().__init__(**options)
+        self.initial_extensions = [
+            'cogs.general',
+            'cogs.admin',
+            'cogs.hearthstone',
+        ]
 
     @asyncio.coroutine
     def _get_prefix(self, message):
@@ -47,13 +54,6 @@ setattr(bot, 'database', db)
 setattr(bot, 'errdb', plugins.errordb)
 setattr(bot, 'url', "localhost")
 setattr(bot, 'img_url', "139.59.234.223")
-
-bot.initial_extensions = [
-    'cogs.general',
-    'cogs.admin',
-    'cogs.hearthstone',
-]
-
 
 @bot.event
 @asyncio.coroutine
@@ -91,15 +91,14 @@ def on_message(message):
 
 
 @bot.event
-@asyncio.coroutine
-def on_command_error(error, ctx):
+async def on_command_error(error, ctx):
     """."""
     if isinstance(error, commands.NoPrivateMessage):
-        yield from bot.send_message(
+        await bot.send_message(
             ctx.message.author,
             'This command cannot be used in private messages.')
     elif isinstance(error, commands.DisabledCommand):
-        yield from bot.send_message(
+        await bot.send_message(
             ctx.message.author,
             'Sorry. This command is disabled and cannot be used.')
     elif isinstance(error, commands.CommandInvokeError):
@@ -112,16 +111,6 @@ def on_command_error(error, ctx):
         traceback.print_tb(error.original.__traceback__)
         print('{0.__class__.__name__}: {0}'.format(
               error.original), file=sys.stderr)
-
-
-def app_main(loop):
-    """Flask app thread (auto reload turned off)."""
-    plugins.app.run(
-        debug=False,
-        host="0.0.0.0",
-        port=80)
-    setattr(bot, "app", plugins.app)
-    setattr(plugins.app, "bot", bot)
 
 
 def setup_logins():
@@ -139,8 +128,7 @@ def setup_logins():
                 len(db.table_data("Client", "Data", data)) > 0 else None
 
 
-@asyncio.coroutine
-def hs_updater():
+async def hs_updater():
     """."""
     while 1:
         k = db.table_data("Client", "Data", "Hs_json_last")
