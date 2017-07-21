@@ -7,3 +7,5 @@ settings.ini
 *.db
 .vscode
 .vscode/*
+*.log
+.vscode
