@@ -217,8 +217,7 @@ class Admin:
             mycmd = subprocess.getoutput("ping -c 10 168.1.24.83")
         else:
             mycmd=subprocess.getoutput("ping 168.1.24.83")
-        resp = mycmd.decode("utf-8")
-        await ctx.send("```prolog\n{}```".format(resp))
+        await ctx.send("```prolog\n{}```".format(mycmd))
 
     @commands.is_owner()
     @commands.command()
