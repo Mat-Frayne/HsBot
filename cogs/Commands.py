@@ -112,6 +112,11 @@ class Commands:
         except Exception:
             await ctx.send("error removing command")
 
+    @command.command()
+    async def info(self, ctx, cmd:str):
+        """."""
+        await ctx.send("working")
+
     async def on_message(self, message):
         """."""
         cmd = message.content.split(" ")[0]
