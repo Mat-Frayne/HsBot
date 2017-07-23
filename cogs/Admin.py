@@ -3,14 +3,17 @@
 import asyncio
 import inspect
 import io
+import os
 import subprocess
+import sys
 import textwrap
 import traceback
 from contextlib import redirect_stdout
+from sys import platform
 
 import discord
 from discord.ext import commands
-from sys import platform
+
 
 class Admin:
     """."""
@@ -18,7 +21,7 @@ class Admin:
     def __init__(self, bot):
         """."""
         self.bot = bot
-        self.extensions = ["Hearthstone", "Runescape", "Commands"]
+        self.extensions = ["Hearthstone", "Runescape", "Commands", "Pubg"]
         self._last_result = None
         self.sessions = set()
         for extension in self.extensions:
@@ -50,6 +53,11 @@ class Admin:
         """Reload a module."""
         out = ""
         if "all" in module.lower():
+            try:
+                self.bot.unload_extension('cogs.Admin')
+                self.bot.load_extension('cogs.Admin')
+            except Exception as exc:
+                out = '{}: {}'.format(type(exc).__name__, exc)
             for extension in self.extensions + ["Admin"]:
                 try:
                     self.bot.unload_extension('cogs.' + extension)
@@ -60,7 +68,6 @@ class Admin:
                         .format(out, extension, type(exc).__name__, exc)
         else:
             try:
-
                 self.bot.unload_extension(module)
                 self.bot.load_extension(module)
                 out = "Reloaded {}".format(module)
@@ -116,7 +123,7 @@ class Admin:
             else:
                 self._last_result = ret
                 await ctx.send(f'```py\n{value}{ret}\n```')
-    
+
     @commands.is_owner()
     @commands.command(pass_context=True, hidden=True)
     async def repl(self, ctx):
@@ -216,7 +223,7 @@ class Admin:
         if platform == "linux":
             mycmd = subprocess.getoutput("ping -c 10 168.1.24.83")
         else:
-            mycmd=subprocess.getoutput("ping 168.1.24.83")
+            mycmd = subprocess.getoutput("ping 168.1.24.83")
         await ctx.send("```prolog\n{}```".format(mycmd))
 
     @commands.is_owner()
@@ -232,6 +239,14 @@ class Admin:
         await ctx.send("```prolog\n" + resp + "```")
 
     # git clone -b rewrite https://github.com/Mat-Frayne/HsBot.git
+
+    @commands.command()
+    @commands.is_owner()
+    async def restart(self, ctx):
+        """."""
+        os.execv(sys.executable, ['python'] + sys.argv + ["restarted"])
+
+
 def setup(bot):
     """."""
     bot.add_cog(Admin(bot))

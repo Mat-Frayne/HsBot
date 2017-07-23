@@ -14,13 +14,9 @@ from sqlalchemy.exc import IntegrityError
 
 from database.models import Model
 
-CONFIG = configparser.ConfigParser()
-with open('settings.ini', "r") as f:
-    CONFIG.read_file(f)
-
 logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 
-
+    
 class Client(commands.Bot):
     """."""
 
@@ -31,6 +27,9 @@ class Client(commands.Bot):
         self.engine = create_engine("sqlite:///database/main.db")
         self.conn = self.engine.connect()
         self.models = Model(self.engine)
+        self.config = configparser.ConfigParser()
+        with open('settings.ini', "r") as file:
+            self.config.read_file(file)
         if kwargs.get("ow"):
             self.loop.create_task(kwargs.get("ow"))
 
@@ -42,12 +41,17 @@ class Client(commands.Bot):
             self.conn.execute(self.models.stats.insert(), [
                 {'Stat': 'Commands_used', 'Value': 0},
                 {'Stat': 'Messages_recieved', 'Value': 0},
-             {'Stat': 'Messages_sent', 'Value': 0}
+                {'Stat': 'Messages_sent', 'Value': 0}
             ])
         except IntegrityError:
             pass
         await self.wait_until_ready()
         await asyncio.sleep(10)
+        
+        if "restarted" in sys.argv[1]:
+            user = await self.application_info()
+            user = self.get_user(user.owner.id)
+            await user.send("Sucessfully Restarted!")
 
     async def on_message(self, message):
         """."""
@@ -59,7 +63,6 @@ class Client(commands.Bot):
         smtm = stats.update().where(stats.c.Stat == "Messages_recieved").values(
             Value=query["Value"] + 1)
         self.conn.execute(smtm)
-
 
         await self.process_commands(message)
 
@@ -91,7 +94,8 @@ class Client(commands.Bot):
         # print(dir(ctx))
         pass
 
-    def on_command_error(self, ctx, error):
+    @staticmethod
+    def on_command_error(ctx, error):
         """."""
         if isinstance(error, commands.NoPrivateMessage):
             yield from ctx.send_message(
@@ -107,7 +111,8 @@ class Client(commands.Bot):
             #         ctx.message.channel,
             #         "Command cannot be used in Private channel.")
             #     return
-            print('In {0.command.qualified_name}:'.format(ctx), file=sys.stderr)
+            print('In {0.command.qualified_name}:'.format(
+                ctx), file=sys.stderr)
             traceback.print_tb(error.original.__traceback__)
             print('{0.__class__.__name__}: {0}'.format(
                 error.original), file=sys.stderr)
@@ -121,4 +126,4 @@ BOT = Client(command_prefix='!')
 
 if __name__ == '__main__':
     BOT.load_extension("cogs.Admin")
-    BOT.run(CONFIG.get("tokens", "subatest"))
+    BOT.run(BOT.config.get("tokens", "subatest"))

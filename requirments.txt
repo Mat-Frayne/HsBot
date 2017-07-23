@@ -4,4 +4,5 @@ configparser==3.5.0
 git+https://github.com/Rapptz/discord.py@rewrite
 Pillow==4.2.1
 SQLAlchemy==1.1.11
+pypubg
 

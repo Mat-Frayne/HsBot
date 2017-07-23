@@ -3,7 +3,6 @@ from asyncio import TimeoutError as Te_
 from datetime import datetime
 
 from discord.ext import commands
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import select
 
 
@@ -113,14 +112,14 @@ class Commands:
             await ctx.send("error removing command")
 
     @command.command()
-    async def info(self, ctx, cmd:str):
+    async def info(self, ctx):
         """."""
         await ctx.send("working")
 
     async def on_message(self, message):
         """."""
         cmd = message.content.split(" ")[0]
-        if cmd[0] == await self.bot.get_prefix(message):
+        if cmd and (cmd[0] == await self.bot.get_prefix(message)):
             comms = self.bot.models.commands
             statement = select([comms]).where(comms.c.Command == cmd[1:])
             query = self.bot.conn.execute(statement).first()
