@@ -238,13 +238,17 @@ class Admin:
         resp = p.communicate()[0].decode("utf-8")
         await ctx.send("```prolog\n" + resp + "```")
 
-    # git clone -b rewrite https://github.com/Mat-Frayne/HsBot.git
-
     @commands.command()
     @commands.is_owner()
     async def restart(self, ctx):
         """."""
         os.execv(sys.executable, ['python'] + sys.argv + ["restarted"])
+
+    @commands.command()
+    @commands.is_owner()
+    async def pull(self, ctx):
+        out = subprocess.getoutput("git pull")
+        await ctx.send(out)
 
 
 def setup(bot):
