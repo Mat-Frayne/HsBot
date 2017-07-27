@@ -48,7 +48,7 @@ class Client(commands.Bot):
         await self.wait_until_ready()
         await asyncio.sleep(10)
         
-        if "restarted" in sys.argv[1]:
+        if "restarted" in sys.argv:
             user = await self.application_info()
             user = self.get_user(user.owner.id)
             await user.send("Sucessfully Restarted!")

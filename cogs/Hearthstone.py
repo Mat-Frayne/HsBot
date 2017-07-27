@@ -35,6 +35,8 @@ class Hearthstone:
                         return True
                     return False
 
+
+
 def setup(bot):
     """."""
     bot.add_cog(Hearthstone(bot))

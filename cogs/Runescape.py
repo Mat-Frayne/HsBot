@@ -15,7 +15,7 @@ class Runescape:
         self.bot = bot
 
     @commands.command()
-    async def stats(self, ctx, name: str):
+    async def stats(self, ctx, *, name: str):
         """."""
         uni1 = "⚫"
         uni2 = "⚪"

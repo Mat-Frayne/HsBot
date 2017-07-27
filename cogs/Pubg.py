@@ -18,7 +18,7 @@ class Pubg:
     async def _pubg(self, ctx):
         pass
 
-    @_pubg.command(name="stats")
+    @_pubg.command(name="stats", hidden=True)
     async def _stats(self, ctx, name: str, mode_: str = ""):
         """."""
 
@@ -84,16 +84,27 @@ class Pubg:
         seconds += (new.tm_min - old.tm_min) * 60
         seconds += (new.tm_hour - old.tm_hour) * 60 * 60
         seconds += (new.tm_mday - old.tm_mday) * 60 * 60 * 24
-
-        print(seconds)
-
         times_ = await misc.diffrence(0, seconds)
         embed.set_footer(text="Last Updated: {} ({} ago)".format(
             time.strftime('%d-%m-%Y %I:%M:%S%p UTC', old), times_))
         await ctx.send(embed=embed)
 
-# -%m-%Y %h %M %s %Z
 
+    @_pubg.command()
+    async def squad(self, ctx, *, query: str):
+        """."""
+        await ctx.invoke(self._stats, name=query, mode_="squad")
+
+    @_pubg.command()
+    async def duo(self, ctx, *, query: str):
+        """."""
+        await ctx.invoke(self._stats, name=query, mode_="duo")
+    
+    
+    @_pubg.command()
+    async def solo(self, ctx, *, query: str):
+        """."""
+        await ctx.invoke(self._stats, name=query, mode_="solo")
 
 def setup(bot):
     """."""
